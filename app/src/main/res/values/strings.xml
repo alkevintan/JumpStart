@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_service_description">Lets JumpStart open quick search with Alt+Space from any app. It only watches for that key combination.</string>
+</resources>
