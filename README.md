@@ -25,6 +25,24 @@ Requires Android SDK 34 and JDK 17.
 
 `local.properties` must contain your local `sdk.dir`; it is intentionally not tracked.
 
+## Releases
+
+Pushing a version tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml),
+which builds the release APK on GitHub Actions and attaches it to a GitHub Release:
+
+```sh
+# update versionName in app/build.gradle.kts first
+git tag v1.0.9
+git push origin v1.0.9
+```
+
+CI checks that the tag matches `versionName` before building. APKs are not stored in git.
+
+> Release builds are signed with the Android debug keystore that the runner generates.
+> That signature differs from locally built APKs, so uninstall an existing install before
+> installing a CI-built one. For stable upgrade signatures, add a dedicated release
+> keystore via repository secrets and wire it into `signingConfigs` in `app/build.gradle.kts`.
+
 ## License
 
 The bundled dictionary data is derived from Princeton WordNet 3.0 — see
