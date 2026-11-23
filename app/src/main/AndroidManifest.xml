@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
     <!-- Edge-swipe search bar (overlay window). No foreground service on purpose. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- OTA: read the GitHub release feed, download the APK, and hand it to the package installer. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
         <intent>
@@ -84,5 +87,16 @@
             android:launchMode="singleTask"
             android:theme="@style/Theme.JumpStart.Overlay"
             android:windowSoftInputMode="adjustResize|stateVisible" />
+
+        <!-- Bare file:// URIs are blocked on Android 7+; the installer needs a grantable content URI. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updatefileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

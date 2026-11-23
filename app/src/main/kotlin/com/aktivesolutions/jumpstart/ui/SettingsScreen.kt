@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.aktivesolutions.jumpstart.UiState
+import com.aktivesolutions.jumpstart.update.Updater
 
 @Composable
 fun SettingsScreen(
@@ -62,6 +63,8 @@ fun SettingsScreen(
     onSplit: (Boolean) -> Unit,
     onAllowShortcut: () -> Unit,
     onSetDefaultHome: () -> Unit,
+    onCheckUpdate: () -> Unit,
+    onInstallUpdate: () -> Unit,
 ) {
     val c = Js.c
     val ctx = LocalContext.current
@@ -208,6 +211,29 @@ fun SettingsScreen(
                         T("Edge swipe (when enabled): swipe in from the screen edge in any app to search (hidden while a keyboard is connected)", 14, 20, c.onv, 400, 0.25f)
                         T("Alt+Space in any app (after enabling the accessibility service below): quick search", 14, 20, c.onv, 400, 0.25f)
                         T("With a keyboard attached (tablet): just start typing to search", 14, 20, c.onv, 400, 0.25f)
+                    }
+                }
+                Card {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GroupLabel("Updates")
+                        T("Installed: v${Updater.installedVersion(ctx)}", 14, 20, c.onv, 400, 0.25f)
+                        val u = state.update
+                        when {
+                            u.checking -> T("Checking GitHub for updates...", 14, 20, c.onv, 400, 0.25f)
+                            u.available != null -> {
+                                T("v${u.available.version} is available", 16, 24, c.primary, 500, 0.1f)
+                                if (u.available.notes.isNotBlank()) T(u.available.notes, 14, 20, c.onv, 400, 0.25f, maxLines = 3)
+                            }
+                            u.upToDate -> T("You're up to date", 14, 20, c.onv, 400, 0.25f)
+                            u.error != null -> T("Update check failed: ${u.error}", 14, 20, c.onv, 400, 0.25f)
+                        }
+                        if (u.downloading) {
+                            T(if (u.progress >= 0) "Downloading ${u.progress}%" else "Downloading...", 14, 20, c.onv, 400, 0.25f)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PillButton("Check for updates", c.sec, c.osec, onClick = onCheckUpdate)
+                            if (u.available != null) PillButton("Download & install", c.primary, c.onPrimary, onClick = onInstallUpdate)
+                        }
                     }
                 }
                 Card {

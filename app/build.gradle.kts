@@ -20,20 +20,34 @@ android {
         versionName = "1.0.9"
     }
 
+    // CI decodes a private release keystore from GitHub Secrets into RELEASE_KEYSTORE. Using a stable key is
+    // what makes in-app OTA upgrades install cleanly: Android rejects an update whose signature differs from
+    // the installed app. Local builds have none of these env vars and keep using the debug keystore.
+    val ciKeystore = System.getenv("RELEASE_KEYSTORE")
+    signingConfigs {
+        if (ciKeystore != null) {
+            create("release") {
+                storeFile = file(ciKeystore)
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         // Debug stays a plain, fast-building, debuggable build (no R8).
         debug {
             isMinifyEnabled = false
         }
         // Release = what gets installed on devices: not debuggable, R8 + resource shrinking (material-icons-extended
-        // is huge unshrunk and the SM-T550 has 1.5 GB RAM). Signed with the debug keystore for now so it installs
-        // over the existing debug-signed install without an uninstall (same signature).
+        // is huge unshrunk and the SM-T550 has 1.5 GB RAM).
         release {
             isDebuggable = false
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

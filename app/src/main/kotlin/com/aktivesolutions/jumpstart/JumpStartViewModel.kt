@@ -27,6 +27,9 @@ import com.aktivesolutions.jumpstart.search.SearchResult
 import com.aktivesolutions.jumpstart.search.Tags
 import com.aktivesolutions.jumpstart.search.dictFor
 import com.aktivesolutions.jumpstart.search.isDictQuery
+import com.aktivesolutions.jumpstart.update.CheckResult
+import com.aktivesolutions.jumpstart.update.UpdateState
+import com.aktivesolutions.jumpstart.update.Updater
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -66,6 +69,8 @@ data class UiState(
     val showFullDict: Boolean = false,
     /** App whose tags are being edited (long-press dialog), or null. */
     val editingTags: Item? = null,
+    /** Latest GitHub Release / download progress, shown in Settings and the launch-time prompt. */
+    val update: UpdateState = UpdateState(),
 )
 
 /** A search to run: [q] is the trimmed query; [epoch] bumps to force a re-run when the data (apps, contacts) changes. */
@@ -197,6 +202,8 @@ class JumpStartViewModel(app: Application) : AndroidViewModel(app) {
     fun openSettings() = _state.update { it.copy(screen = Screen.SETTINGS) }
 
     fun refreshPermission() {
+        // Returning from Settings > Install unknown apps may complete an OTA install started earlier.
+        Updater.resumePending(ctx)
         val sc = ShortcutAccessibilityService.isEnabled(ctx)
         if (sc != _state.value.shortcutEnabled) _state.update { it.copy(shortcutEnabled = sc) }
         val o = Settings.canDrawOverlays(ctx)
@@ -407,6 +414,54 @@ class JumpStartViewModel(app: Application) : AndroidViewModel(app) {
         }
         bumpSearch() // epoch change forces the current query to be re-ranked
     }
+
+    // ---- updates ----
+    private var autoChecked = false
+
+    /** Once per process (cold launch): a newer release raises the in-app prompt. */
+    fun autoCheckUpdate() {
+        if (autoChecked) return
+        autoChecked = true
+        checkUpdate(auto = true)
+    }
+
+    fun checkUpdate(auto: Boolean = false) {
+        if (_state.value.update.checking) return
+        _state.update { it.copy(update = UpdateState(checking = true)) }
+        viewModelScope.launch {
+            val result = Updater.check(Updater.installedVersion(ctx))
+            _state.update { s ->
+                s.copy(update = when (result) {
+                    is CheckResult.New -> UpdateState(available = result.release, prompt = auto)
+                    is CheckResult.UpToDate -> UpdateState(upToDate = true)
+                    is CheckResult.Error -> UpdateState(error = result.message)
+                })
+            }
+        }
+    }
+
+    fun installUpdate() {
+        val release = _state.value.update.available ?: return
+        _state.update { it.copy(update = it.update.copy(downloading = true, progress = -1, error = null, prompt = false)) }
+        viewModelScope.launch {
+            val file = Updater.download(ctx, release.apkUrl) { p ->
+                _state.update { s -> s.copy(update = s.update.copy(progress = p)) }
+            }
+            if (file == null) {
+                _state.update { s -> s.copy(update = s.update.copy(downloading = false, error = "download failed")) }
+                return@launch
+            }
+            val launched = Updater.install(ctx, file)
+            _state.update { s ->
+                s.copy(update = s.update.copy(
+                    downloading = false, progress = 100,
+                    error = if (launched) null else "allow installs from this source to continue",
+                ))
+            }
+        }
+    }
+
+    fun dismissUpdate() = _state.update { it.copy(update = it.update.copy(prompt = false)) }
 
     // ---- settings ----
     fun setScheme(s: String) {

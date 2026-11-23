@@ -38,10 +38,25 @@ git push origin v1.0.9
 
 CI checks that the tag matches `versionName` before building. APKs are not stored in git.
 
-> Release builds are signed with the Android debug keystore that the runner generates.
-> That signature differs from locally built APKs, so uninstall an existing install before
-> installing a CI-built one. For stable upgrade signatures, add a dedicated release
-> keystore via repository secrets and wire it into `signingConfigs` in `app/build.gradle.kts`.
+CI signs release APKs with a private keystore held in repository secrets
+(`RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`,
+`RELEASE_KEY_PASSWORD`), so every published release has the same signature and
+in-app upgrades install cleanly. Local builds still use the debug keystore.
+APKs built locally will not accept a CI-built update over the top — uninstall once
+to move to the CI-signed line.
+
+## Over-the-air updates
+
+JumpStart reads the latest GitHub Release at launch (once per process) and offers a
+download/install prompt when `tag_name` is a higher version than the installed one.
+Settings → **Updates** has a manual "Check for updates" button and shows the
+installed version. The APK is downloaded from the release asset, written to the app's
+cache, and installed through a `FileProvider` content URI (required on Android 7+).
+If "install unknown apps" is not yet granted, the user is sent to that setting and
+the install resumes on return.
+
+`REQUEST_INSTALL_PACKAGES` is declared in the manifest. No notification permission
+is needed: the prompt is in-app.
 
 ## License
 

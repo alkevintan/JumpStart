@@ -41,7 +41,11 @@ import android.speech.RecognizerIntent
 fun JumpStartApp(vm: JumpStartViewModel, overlay: Boolean = false, onExternalFlow: (Boolean) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
 
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refreshPermission(); if (!overlay) vm.syncFromPrefs() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        vm.refreshPermission()
+        // Only the home VM checks, once per process; the overlay VM shares the process but not the UI.
+        if (!overlay) { vm.syncFromPrefs(); vm.autoCheckUpdate() }
+    }
 
     val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == Activity.RESULT_OK) {
@@ -124,6 +128,8 @@ fun JumpStartApp(vm: JumpStartViewModel, overlay: Boolean = false, onExternalFlo
                         if (i != null) runCatching { homeRole.launch(i) }.onFailure { vm.launcher.openSetting("home") }
                         else if (!vm.launcher.openSetting("home")) vm.toast("Couldn't open settings")
                     },
+                    onCheckUpdate = { vm.checkUpdate() },
+                    onInstallUpdate = vm::installUpdate,
                 )
             }
             if (state.toast.isNotEmpty()) {
@@ -152,6 +158,26 @@ fun JumpStartApp(vm: JumpStartViewModel, overlay: Boolean = false, onExternalFlo
                             }
                         }
                     },
+                )
+            }
+            if (state.update.prompt) state.update.available?.let { u ->
+                AlertDialog(
+                    onDismissRequest = vm::dismissUpdate,
+                    title = { Text("Update available") },
+                    text = {
+                        Column {
+                            Text("JumpStart v${u.version} is ready to download.")
+                            if (u.notes.isNotBlank()) {
+                                Text(
+                                    u.notes,
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = vm::installUpdate) { Text("Download & install") } },
+                    dismissButton = { TextButton(onClick = vm::dismissUpdate) { Text("Later") } },
                 )
             }
         }
